@@ -5,13 +5,14 @@ using System.Linq;
 using System.Threading;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
+using OpenQA.Selenium.Firefox;
 using OpenQA.Selenium.Remote;
 using OpenQA.Selenium.Support.UI;
 
 namespace JustInCase.ImageScraper
 {
-    public class ImageUrlScraper
-    {
+	public class ImageUrlScraper
+	{
 		private const string DefaultImageRootSelector = "body";
 
 		private const string DefaultImageSelector = "img";
@@ -29,21 +30,30 @@ namespace JustInCase.ImageScraper
 
 			try
 			{
-				using(var driver = new ChromeDriver(_settings.DriverPath))
+				using (var driver = new ChromeDriver(_settings.DriverPath))
 				{
 					driver.Navigate().GoToUrl(_settings.Url);
-					var imageRoot = WaitForImageRoot(driver);
-					var images = GetImages(imageRoot);
+					driver.Manage().Window.Maximize();
 
-					foreach(var image in images)
+					var imageRoot = WaitForImageRoot(driver);
+
+					if (_settings.IsInfiniteScrollPage)
 					{
-						string url = GetImageUrl(image);
-						if(!string.IsNullOrEmpty(url))
+						HandleInfiniteScroll(driver);
+					}
+
+					var images = GetImages(imageRoot);
+					var hostUrl = UrlHelper.GetHostUrl(_settings.Url);
+
+					foreach (var image in images)
+					{
+						string url = GetImageUrl(image, hostUrl);
+						if (!string.IsNullOrEmpty(url))
 							results.Add(url);
 					}
 				}
 			}
-			catch(Exception e)
+			catch (Exception e)
 			{
 				//TODO Log exception.
 				throw;
@@ -54,12 +64,27 @@ namespace JustInCase.ImageScraper
 
 		private IWebElement WaitForImageRoot(RemoteWebDriver driver)
 		{
-			var waitTimeSeconds = _settings.InitialWaitTimeSeconds < 1 ? 1 : _settings.InitialWaitTimeSeconds;
-			Thread.Sleep(waitTimeSeconds * 1000);
-			
+			var waitTimeMillis = _settings.InitialWaitTimeMillis < 1 ? 1 : _settings.InitialWaitTimeMillis;
+			Thread.Sleep(waitTimeMillis);
+
 			var rootSelector = string.IsNullOrEmpty(_settings.ImageRootSelector) ? DefaultImageRootSelector : _settings.ImageRootSelector;
 
 			return driver.FindElementByCssSelector(rootSelector);
+		}
+
+		private void HandleInfiniteScroll(RemoteWebDriver driver)
+		{
+			var waitTimeMillis = _settings.InfiniteScrollWaitTimeMillis < 1 ? 1 : _settings.InfiniteScrollWaitTimeMillis;
+			var scrollScript = $"window.scrollBy(0, {_settings.InfiniteScrollStepPixels});";
+			var validationScript = "return (window.scrollY === 0) || (window.innerHeight + window.scrollY) >= document.body.offsetHeight;";
+
+			while(true)
+			{
+				driver.ExecuteScript(scrollScript);
+				Thread.Sleep(waitTimeMillis);
+				if((bool)driver.ExecuteScript(validationScript))
+					break;
+			}			
 		}
 
 		private List<IWebElement> GetImages(IWebElement imageRoot)
@@ -68,16 +93,19 @@ namespace JustInCase.ImageScraper
 			return new List<IWebElement>(imageRoot.FindElements(By.CssSelector(imageSelector)));
 		}
 
-		private string GetImageUrl(IWebElement image)
+		private string GetImageUrl(IWebElement image, string hostUrl)
 		{
 			string url = image.GetAttribute("src");
 
-			if(string.IsNullOrEmpty(url))
+			if (string.IsNullOrEmpty(url))
 				return url;
 
 			var isIncluded = IsUrlIncluded(url, out int includedMatchLength);
 			var isExluded = IsUrlExcluded(url, out int exludedMatchLength);
-			
+
+			if(!UrlHelper.IsAbsoluteUrl(url))
+				url = UrlHelper.ToAbsoluteUrl(url, hostUrl);			
+
 			return !isIncluded || (isExluded && exludedMatchLength > includedMatchLength) ? null : url;
 		}
 
@@ -85,17 +113,17 @@ namespace JustInCase.ImageScraper
 		{
 			matchLength = int.MinValue;
 
-			if(_settings.IncludeUrlPrefixes == null || _settings.IncludeUrlPrefixes.Any())
+			if (_settings.IncludeUrlPrefixes == null || _settings.IncludeUrlPrefixes.Any())
 				return true;
-			
-			foreach(var prefix in _settings.IncludeUrlPrefixes)
+
+			foreach (var prefix in _settings.IncludeUrlPrefixes)
 			{
-				if(url.StartsWith(prefix, true, CultureInfo.InvariantCulture))
+				if (url.StartsWith(prefix, true, CultureInfo.InvariantCulture))
 				{
 					matchLength = prefix.Length;
 					return true;
 				}
-					
+
 			}
 
 			return false;
@@ -105,12 +133,12 @@ namespace JustInCase.ImageScraper
 		{
 			matchLength = int.MinValue;
 
-			if(_settings.ExcludeUrlPrefixes == null || _settings.ExcludeUrlPrefixes.Any())
+			if (_settings.ExcludeUrlPrefixes == null || _settings.ExcludeUrlPrefixes.Any())
 				return false;
-			
-			foreach(var prefix in _settings.ExcludeUrlPrefixes)
+
+			foreach (var prefix in _settings.ExcludeUrlPrefixes)
 			{
-				if(url.StartsWith(prefix, true, CultureInfo.InvariantCulture))
+				if (url.StartsWith(prefix, true, CultureInfo.InvariantCulture))
 				{
 					matchLength = prefix.Length;
 					return true;
@@ -119,5 +147,5 @@ namespace JustInCase.ImageScraper
 
 			return false;
 		}
-    }
+	}
 }

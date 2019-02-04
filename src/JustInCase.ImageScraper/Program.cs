@@ -1,5 +1,4 @@
-﻿using System;
-using System.Drawing;
+﻿using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.IO.Compression;
@@ -10,7 +9,7 @@ using OpenQA.Selenium.Support.UI;
 
 namespace JustInCase.ImageScraper
 {
-    public class Program
+	public class Program
     {
         public static void Main(string[] args)
         {
@@ -21,17 +20,15 @@ namespace JustInCase.ImageScraper
 				ImageRootSelector = "#containerRoot #divImage",
 				IncludeUrlPrefixes = new [] { "https://2.bp.blogspot.com/" },
 				ImageSelector = "img",
-				InitialWaitTimeSeconds = 10,
+				InitialWaitTimeMillis = 10000,
 				DestinationFolderPath = @"C:\Temp\image-scraper"
 			};
-            
+			         
 			var scraper = new ImageUrlScraper(settings);
 			var downloader = new ImageDownloader(settings);
 			var persister = new ImagePersister(settings);
 
 			persister.PersistAll(downloader.DownloadAll(scraper.Scrape()));
-            
-            Thread.Sleep(50000);
         }
     }
 }

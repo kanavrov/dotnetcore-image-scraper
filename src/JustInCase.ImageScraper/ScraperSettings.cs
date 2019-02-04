@@ -10,12 +10,18 @@ namespace JustInCase.ImageScraper
 
 		public string ImageSelector { get; set; }
 
-		public int InitialWaitTimeSeconds { get; set; }
+		public int InitialWaitTimeMillis { get; set; }
 
 		public string[] IncludeUrlPrefixes { get; set; }
 
 		public string[] ExcludeUrlPrefixes { get; set; }
 
 		public string DestinationFolderPath { get; set; }
+
+		public bool IsInfiniteScrollPage { get; set; }
+
+		public int InfiniteScrollWaitTimeMillis { get; set; }
+
+		public int InfiniteScrollStepPixels { get; set; }
 	}
 }
